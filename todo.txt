@@ -1,0 +1,17 @@
+
+
+
+- System health monitor
+    - Temp
+    - RAM Usage
+    - CPU Usage
+    - Storage Usage
+
+- Wifi
+    - Status
+    - Connect
+
+- Raspberry Pi Connect
+    - Turn on/off or restart
+
+- Bluetooth
