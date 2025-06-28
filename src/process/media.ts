@@ -4,21 +4,52 @@ import { LoopState, SongData } from "./types";
 const DELIMITER: string = ".|.";
 
 
-export function startMPRISProxy() {
-    const process: ChildProcessWithoutNullStreams = spawn('mpris-proxy');
+export async function startMPRISProxy(): Promise<void> {
+    return new Promise((resolve) => {
+        console.log(`[mpris-proxy] Attempting to start mpris-proxy...`);
 
-    process.stdout.on("data", (data) => {
-        console.log(`[mpris-proxy]: ${data.toString().trim()}`);
-    });
+        const process: ChildProcessWithoutNullStreams = spawn('mpris-proxy');
 
-    process.stderr.on("data", (data) => {
-        console.error(`[mpris-proxy]: ${data.toString().trim()}`);
+        process.on('spawn', () => {
+            console.log(`[mpris-proxy] Started mpris-proxy.`);
+            resolve()
+        })
+        process.stdout.on("data", (data) => {
+            console.log(`[mpris-proxy] ${data.toString().trim()}`);
+            resolve()
 
-    });
+        });
 
-    process.on("close", (code) => {
-        console.error(`[mpris-proxy]: DISCONNECTED`);
-    });
+        process.stderr.on("data", (data) => {
+            console.error(`[mpris-proxy] ${data.toString().trim()}`);
+            resolve()
+
+        });
+
+        process.on("close", (code) => {
+            console.error(`[mpris-proxy] Disconnected with code ${code}`);
+            resolve()
+
+        });
+    })
+}
+
+export async function hasMediaPlayers(): Promise<boolean> {
+    return new Promise((resolve) => {
+        console.log(`[playerctl -l] Checking for listeners...`);
+        const process: ChildProcessWithoutNullStreams = spawn('playerctl', ['-l']);
+
+        process.stdout.on("data", (data) => {
+            const devices: string = data.toString().trim();
+            console.log(`[playerctl -l] ${data.toString().trim()}`);
+
+            if (devices.toLowerCase().includes("No players found".toLowerCase())) {
+                resolve(false);
+                return
+            }
+            resolve(true)
+        });
+    })
 }
 
 export function listenToSongChanges(callback: (songData: SongData) => void) {
@@ -28,6 +59,11 @@ export function listenToSongChanges(callback: (songData: SongData) => void) {
         '--format',
         '{{ artist }}.|.{{ album }}.|.{{ title }}.|.{{ duration(position) }}.|.{{ duration(mpris:length) }}'
     ]);
+
+    playerCTL.on('spawn', () => {
+        console.log(`[playerctl metadata] Started listener.`);
+    })
+
     playerCTL.stdout.on("data", (data) => {
         const songData: SongData = parseSongData(data.toString().trim());
         callback(songData);
@@ -38,7 +74,7 @@ export function listenToSongChanges(callback: (songData: SongData) => void) {
     });
 
     playerCTL.on("close", (code) => {
-        console.log(`playerctl process exited with code ${code}`);
+        console.log(`[playerctl metadata] Exited with code ${code}`);
     });
 }
 
@@ -46,6 +82,10 @@ export function listenToSongChanges(callback: (songData: SongData) => void) {
 
 export function listenToPlaybackState(callback: (isPlaying: boolean) => void) {
     const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', ['status', '--follow']);
+    playerCTL.on('spawn', () => {
+        console.log(`[playerctl status] Started listener.`);
+    })
+
     playerCTL.stdout.on("data", (data) => {
         callback(data.toString().trim() === "Playing");
     });
@@ -55,7 +95,7 @@ export function listenToPlaybackState(callback: (isPlaying: boolean) => void) {
     });
 
     playerCTL.on("close", (code) => {
-        console.log(`playerctl process exited with code ${code}`);
+        console.log(`[playerctl status] Exited with code ${code}`);
     });
 }
 

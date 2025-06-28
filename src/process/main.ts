@@ -1,6 +1,6 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy } from "./media";
+import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy, hasMediaPlayers } from "./media";
 import { LoopState, ORDERED_LOOP_STATES, SongData } from "./types";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
@@ -35,8 +35,14 @@ export default class ChildProcess extends Process {
     public async initialize(): Promise<void> {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
+        console.log("[Nexus RPI Essentials] Starting.")
 
-        startMPRISProxy();
+        await startMPRISProxy();
+
+        const isConnected = await hasMediaPlayers();
+        if (!isConnected) {
+            return;
+        }
 
         this.loopState = await getLoopStatus();
         this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
