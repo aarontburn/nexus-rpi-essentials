@@ -1,22 +1,24 @@
 import * as path from "path";
-import { DataResponse, Process, Setting } from "@nexus-app/nexus-module-builder";
-import { BooleanSetting } from "@nexus-app/nexus-module-builder/settings/types";
+import { Process, Setting } from "@nexus-app/nexus-module-builder";
+import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, setShuffle, togglePlay } from "./media";
+import { LoopState, ORDERED_LOOP_STATES, ShuffleState, SongData } from "./types";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
 const MODULE_NAME: string = "{EXPORTED_MODULE_NAME}";
 // ---------------------------------------------------
 const HTML_PATH: string = path.join(__dirname, "../renderer/index.html");
-
-
-// If you have an icon, specify the relative path from this file.
-// Can be a .png, .jpeg, .jpg, or .svg
 // const ICON_PATH: string = path.join(__dirname, "...")
 
 const ICON_PATH: string = undefined;
 
 
-export default class SampleProcess extends Process {
+
+
+export default class ChildProcess extends Process {
+
+    private loopState: LoopState = ORDERED_LOOP_STATES[0];
+    private loopIndex: number = 0;
 
     public constructor() {
         super({
@@ -32,6 +34,20 @@ export default class SampleProcess extends Process {
     public async initialize(): Promise<void> {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
+
+        this.loopState = await getLoopStatus();
+        this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
+
+
+        listenToSongChanges((newSong: SongData) => {
+            console.info("Song changed: " + JSON.stringify(newSong, undefined, 4));
+            this.sendToRenderer('song-change', newSong);
+        });
+        
+        listenToPlaybackState((isPlaying: boolean) => {
+            console.info(`Player ${isPlaying ? "un": ''}paused`);
+            this.sendToRenderer('is-playing', isPlaying);
+        })
     }
 
     public async handleEvent(eventType: string, data: any[]): Promise<any> {
@@ -40,6 +56,37 @@ export default class SampleProcess extends Process {
                 this.initialize();
                 break;
             }
+
+            case "previous": {
+                previous();
+                break;
+            }
+
+            case "play-pause": {
+                togglePlay();
+                break;
+            }
+
+            case "next": {
+                next();
+                break;
+            }
+
+            case "shuffle": {
+                setShuffle("Toggle");
+                break;
+            }
+
+            case "loop": {
+                this.loopIndex++;
+                if (this.loopIndex > ORDERED_LOOP_STATES.length - 1) {
+                    this.loopIndex = 0;
+                }
+                this.loopState = ORDERED_LOOP_STATES[this.loopIndex];
+                setLoop(this.loopState);
+                break;
+            }
+
 
             default: {
                 console.info(`[${MODULE_NAME}] Unhandled event: eventType: ${eventType} | data: ${data}`);

@@ -1,17 +1,44 @@
 import { useEffect, useState } from 'react'
 import './App.css'
 import { addProcessListener, sendToProcess } from './nexus-bridge';
+import { Spacer } from './components';
+import loop from "./assets/loop.svg";
+import next from "./assets/next.svg";
+import pause from "./assets/pause.svg";
+import play from "./assets/play.svg";
+import previous from "./assets/previous.svg";
+import shuffleOff from "./assets/shuffle-off.svg";
+import shuffleOn from "./assets/shuffle-on.svg";
 
+export interface SongData {
+    title: string;
+    album: string;
+    artist: string;
+    position: string;
+    duration: string;
+}
 
 function App() {
-    const [count, setCount] = useState(0);
-    const [isSampleSettingOn, setSampleSetting] = useState(false);
+    const [currentSong, setCurrentSong] = useState<SongData | undefined>({
+        album: "HEROES AND VILLAINS",
+        artist: "Metro Boomin",
+        title: "Trance",
+        duration: "3:15",
+        position: "2:07"
+    });
+    const [isPlaying, setIsPlaying] = useState<boolean>(false);
 
     useEffect(() => {
         const listener = addProcessListener((eventType: string, data: any[]) => {
             switch (eventType) {
-                case "sample-setting": {
-                    setSampleSetting(data[0]);
+                case "song-change": {
+                    const songData: SongData = data[0];
+                    setCurrentSong(songData);
+                    break;
+                }
+                case "is-playing": {
+                    const isPlaying: boolean = data[0];
+                    setIsPlaying(isPlaying)
                     break;
                 }
                 case "accent-color-changed": {
@@ -32,30 +59,38 @@ function App() {
 
     return (
         <>
-            <div style={{ display: "flex", justifyContent: "center" }}>
-                <a href="https://github.com/aarontburn/nexus-core" target="_blank"
-                    style={{ width: "fit-content" }}>
-                    <div className="logo nexus"></div>
-                </a>
+            <div className='song-metadata'>
+                <h1>{currentSong?.title}</h1>
+                <h2>{currentSong?.album}</h2>
+                <Spacer />
+
+                <h3>{currentSong?.position}/{currentSong?.duration}</h3>
             </div>
-            <h1><b>Nexus</b></h1>
-            <h1>Sample React App</h1>
-            <p>Sample setting is <b>{isSampleSettingOn ? "on" : "off"}</b>. Visit the <b>Settings</b> module to change it.</p>
-            <div className="card">
-                <button onClick={() => setCount((count) => count + 1)}>
-                    count is {count}
-                </button>
-                <br />
-                <br />
-                <button onClick={() => sendToProcess("count", count)}>
-                    Send <b>count</b> to process
-                </button>
-                <p>
-                    Edit <code>src/App.tsx</code> and save to test HMR
-                </p>
+
+            <Spacer size='32px' />
+
+
+            <div className='song-controls'>
+                <div className='row-1'>
+                    <SongControl image={previous} eventName='previous' />
+                    <SongControl image={isPlaying ? pause : play} eventName='play-pause' />
+                    <SongControl image={next} eventName='next' />
+                </div>
+
+                <div className='row-2'>
+                    <SongControl image={shuffleOff} eventName='shuffle' />
+                    <SongControl image={loop} eventName='loop' />
+                </div>
+
             </div>
+
         </>
     )
+}
+
+function SongControl({ image, eventName }: { image: string, eventName: string }) {
+    return <button style={{ maskImage: `url("${image}")` }} className='icon' onClick={(() => sendToProcess(eventName))}></button>
+
 }
 
 export default App
