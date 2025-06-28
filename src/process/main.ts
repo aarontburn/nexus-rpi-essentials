@@ -1,7 +1,7 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, setShuffle, togglePlay } from "./media";
-import { LoopState, ORDERED_LOOP_STATES, ShuffleState, SongData } from "./types";
+import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy } from "./media";
+import { LoopState, ORDERED_LOOP_STATES, SongData } from "./types";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -20,6 +20,7 @@ export default class ChildProcess extends Process {
     private loopState: LoopState = ORDERED_LOOP_STATES[0];
     private loopIndex: number = 0;
 
+
     public constructor() {
         super({
             moduleID: MODULE_ID,
@@ -35,19 +36,24 @@ export default class ChildProcess extends Process {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
 
+        startMPRISProxy();
+
         this.loopState = await getLoopStatus();
         this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
 
+        this.sendToRenderer('loop', this.loopState);
+        this.sendToRenderer('shuffle', await getShuffleStatus());
 
         listenToSongChanges((newSong: SongData) => {
             console.info("Song changed: " + JSON.stringify(newSong, undefined, 4));
             this.sendToRenderer('song-change', newSong);
         });
-        
+
         listenToPlaybackState((isPlaying: boolean) => {
-            console.info(`Player ${isPlaying ? "un": ''}paused`);
+            console.info(`Player ${isPlaying ? "un" : ''}paused`);
             this.sendToRenderer('is-playing', isPlaying);
-        })
+        });
+
     }
 
     public async handleEvent(eventType: string, data: any[]): Promise<any> {
@@ -58,22 +64,24 @@ export default class ChildProcess extends Process {
             }
 
             case "previous": {
-                previous();
+                await previous();
                 break;
             }
 
             case "play-pause": {
-                togglePlay();
+                await togglePlay();
                 break;
             }
 
             case "next": {
-                next();
+                await next();
                 break;
             }
 
             case "shuffle": {
-                setShuffle("Toggle");
+                await toggleShuffle();
+                this.sendToRenderer('shuffle', await getShuffleStatus());
+
                 break;
             }
 
@@ -83,7 +91,9 @@ export default class ChildProcess extends Process {
                     this.loopIndex = 0;
                 }
                 this.loopState = ORDERED_LOOP_STATES[this.loopIndex];
-                setLoop(this.loopState);
+                await setLoop(this.loopState);
+                this.sendToRenderer('loop', this.loopState);
+
                 break;
             }
 

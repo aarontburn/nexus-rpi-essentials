@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { CSSProperties, useEffect, useState } from 'react'
 import './App.css'
 import { addProcessListener, sendToProcess } from './nexus-bridge';
 import { Spacer } from './components';
@@ -17,16 +17,14 @@ export interface SongData {
     position: string;
     duration: string;
 }
+export type LoopState = "none" | "playlist" | "track";
+
 
 function App() {
-    const [currentSong, setCurrentSong] = useState<SongData | undefined>({
-        album: "HEROES AND VILLAINS",
-        artist: "Metro Boomin",
-        title: "Trance",
-        duration: "3:15",
-        position: "2:07"
-    });
+    const [currentSong, setCurrentSong] = useState<SongData | undefined>(undefined);
     const [isPlaying, setIsPlaying] = useState<boolean>(false);
+    const [loopState, setLoopState] = useState<LoopState>('none');
+    const [isShuffling, setIsShuffling] = useState<boolean>(false);
 
     useEffect(() => {
         const listener = addProcessListener((eventType: string, data: any[]) => {
@@ -39,6 +37,14 @@ function App() {
                 case "is-playing": {
                     const isPlaying: boolean = data[0];
                     setIsPlaying(isPlaying)
+                    break;
+                }
+                case "shuffle": {
+                    setIsShuffling(data[0]);
+                    break;
+                }
+                case "loop": {
+                    setLoopState(data[0]);
                     break;
                 }
                 case "accent-color-changed": {
@@ -60,11 +66,11 @@ function App() {
     return (
         <>
             <div className='song-metadata'>
-                <h1>{currentSong?.title}</h1>
+                <h1>{!currentSong ? "No song playing" : currentSong.title}</h1>
                 <h2>{currentSong?.album}</h2>
                 <Spacer />
 
-                <h3>{currentSong?.position}/{currentSong?.duration}</h3>
+                {currentSong && <h3>{currentSong?.position}/{currentSong?.duration}</h3>}
             </div>
 
             <Spacer size='32px' />
@@ -78,8 +84,8 @@ function App() {
                 </div>
 
                 <div className='row-2'>
-                    <SongControl image={shuffleOff} eventName='shuffle' />
-                    <SongControl image={loop} eventName='loop' />
+                    <SongControl image={isShuffling ? shuffleOn : shuffleOff} eventName='shuffle' />
+                    <SongControl image={loop} eventName='loop' style={{ backgroundColor: (loopState === "none" ? "" : loopState === "playlist" ? "red" : "blue") }} />
                 </div>
 
             </div>
@@ -88,8 +94,8 @@ function App() {
     )
 }
 
-function SongControl({ image, eventName }: { image: string, eventName: string }) {
-    return <button style={{ maskImage: `url("${image}")` }} className='icon' onClick={(() => sendToProcess(eventName))}></button>
+function SongControl({ image, eventName, style }: { image: string, eventName: string, style?: CSSProperties }) {
+    return <button style={{ ...style, maskImage: `url("${image}")` }} className='icon' onClick={(() => sendToProcess(eventName))}></button>
 
 }
 

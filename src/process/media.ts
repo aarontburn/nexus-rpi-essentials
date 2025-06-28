@@ -1,8 +1,26 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
-import { LoopState, ShuffleState, SongData } from "./types";
+import { LoopState, SongData } from "./types";
 
 const FOLLOW_COMMAND: string = `playerctl --follow metadata --format '{{ artist }}.|.{{ album }}.|.{{ title }}.|.{{ duration(position) }}.|.{{ duration(mpris:length) }}`;
 const DELIMITER: string = ".|.";
+
+
+export function startMPRISProxy() {
+    const process: ChildProcessWithoutNullStreams = spawn('mpris-proxy');
+
+    process.stdout.on("data", (data) => {
+        console.log(`[mpris-proxy]: ${data.toString().trim()}`);
+    });
+
+    process.stderr.on("data", (data) => {
+        console.error(`[mpris-proxy]: ${data.toString().trim()}`);
+
+    });
+
+    process.on("close", (code) => {
+        console.error(`[mpris-proxy]: DISCONNECTED`);
+    });
+}
 
 export function listenToSongChanges(callback: (songData: SongData) => void) {
     const playerCTL: ChildProcessWithoutNullStreams = spawn(FOLLOW_COMMAND);
@@ -19,6 +37,8 @@ export function listenToSongChanges(callback: (songData: SongData) => void) {
         console.log(`playerctl process exited with code ${code}`);
     });
 }
+
+
 
 export function listenToPlaybackState(callback: (isPlaying: boolean) => void) {
     const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl status --follow');
@@ -46,28 +66,39 @@ function parseSongData(songString: string): SongData {
     }
 }
 
-export function togglePlay() {
-    spawn("playerctl play-pause");
+export async function togglePlay(): Promise<void> {
+    return executePlayerCTLFunction('play-pause');
+
 }
 
-export function next() {
-    spawn("playerctl next");
+export async function next(): Promise<void> {
+    return executePlayerCTLFunction('next');
 }
 
-export function previous() {
-    spawn("playerctl previous")
+export function previous(): Promise<void> {
+    return executePlayerCTLFunction('previous');
 }
 
 export function setPosition(positionSeconds: number) {
-    spawn(`playerctl position ${positionSeconds}`);
+    return executePlayerCTLFunction(`position ${positionSeconds}`);
 }
 
 export function setLoop(loop: LoopState) {
-    spawn(`playerctl loop ${loop}`);
+    return executePlayerCTLFunction(`loop ${loop}`);
 }
 
-export function setShuffle(shuffle: ShuffleState) {
-    spawn(`playerctl shuffle ${shuffle}`);
+export function toggleShuffle() {
+    return executePlayerCTLFunction(`shuffle toggle`);
+}
+
+async function executePlayerCTLFunction(functionName: string): Promise<void> {
+    return new Promise((resolve) => {
+        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl ${functionName}`);
+
+        playerCTL.on("close", () => {
+            resolve();
+        });
+    })
 }
 
 
@@ -86,11 +117,11 @@ export async function getLoopStatus(): Promise<LoopState> {
     })
 }
 
-export async function getShuffleStatus(): Promise<ShuffleState> {
+export async function getShuffleStatus(): Promise<boolean> {
     return new Promise((resolve) => {
         const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl shuffle`);
         playerCTL.stdout.on("data", (data) => {
-            resolve(data.toString().trim());
+            resolve(data.toString().trim() === "On");
             playerCTL.kill();
         });
 
