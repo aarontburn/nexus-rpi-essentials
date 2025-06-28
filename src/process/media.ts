@@ -1,7 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { LoopState, SongData } from "./types";
 
-const FOLLOW_COMMAND: string = `playerctl --follow metadata --format '{{ artist }}.|.{{ album }}.|.{{ title }}.|.{{ duration(position) }}.|.{{ duration(mpris:length) }}`;
 const DELIMITER: string = ".|.";
 
 
@@ -23,7 +22,12 @@ export function startMPRISProxy() {
 }
 
 export function listenToSongChanges(callback: (songData: SongData) => void) {
-    const playerCTL: ChildProcessWithoutNullStreams = spawn(FOLLOW_COMMAND);
+    const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', [
+        '--follow',
+        'metadata',
+        '--format',
+        '{{ artist }}.|.{{ album }}.|.{{ title }}.|.{{ duration(position) }}.|.{{ duration(mpris:length) }}'
+    ]);
     playerCTL.stdout.on("data", (data) => {
         const songData: SongData = parseSongData(data.toString().trim());
         callback(songData);
@@ -41,7 +45,7 @@ export function listenToSongChanges(callback: (songData: SongData) => void) {
 
 
 export function listenToPlaybackState(callback: (isPlaying: boolean) => void) {
-    const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl status --follow');
+    const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', ['status', '--follow']);
     playerCTL.stdout.on("data", (data) => {
         callback(data.toString().trim() === "Playing");
     });
@@ -93,7 +97,7 @@ export function toggleShuffle() {
 
 async function executePlayerCTLFunction(functionName: string): Promise<void> {
     return new Promise((resolve) => {
-        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl ${functionName}`);
+        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, functionName.split(' '));
 
         playerCTL.on("close", () => {
             resolve();
@@ -104,7 +108,7 @@ async function executePlayerCTLFunction(functionName: string): Promise<void> {
 
 export async function getLoopStatus(): Promise<LoopState> {
     return new Promise((resolve) => {
-        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl loop`);
+        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, ['loop']);
         playerCTL.stdout.on("data", (data) => {
             resolve(data.toString().trim());
             playerCTL.kill();
@@ -114,12 +118,13 @@ export async function getLoopStatus(): Promise<LoopState> {
             resolve(null);
             console.error(`Error: ${data}`);
         });
+
     })
 }
 
 export async function getShuffleStatus(): Promise<boolean> {
     return new Promise((resolve) => {
-        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl shuffle`);
+        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, ['shuffle']);
         playerCTL.stdout.on("data", (data) => {
             resolve(data.toString().trim() === "On");
             playerCTL.kill();
