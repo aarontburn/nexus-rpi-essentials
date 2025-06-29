@@ -1,7 +1,8 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy, hasMediaPlayers } from "./media";
+import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy, listenToStatus, cleanupProcesses } from "./media";
 import { LoopState, ORDERED_LOOP_STATES, SongData } from "./types";
+import { ChildProcessWithoutNullStreams } from "child_process";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -35,31 +36,53 @@ export default class ChildProcess extends Process {
     public async initialize(): Promise<void> {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
-        console.log("[Nexus RPI Essentials] Starting.")
+        console.log("[Nexus RPI Essentials] Starting.");
 
-        await startMPRISProxy();
-
-        const isConnected = await hasMediaPlayers();
-        if (!isConnected) {
+        if (process.platform !== 'linux') {
             return;
         }
 
-        this.loopState = await getLoopStatus();
-        this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
+        await startMPRISProxy();
 
-        this.sendToRenderer('loop', this.loopState);
-        this.sendToRenderer('shuffle', await getShuffleStatus());
 
-        listenToSongChanges((newSong: SongData) => {
-            console.info("Song changed: " + JSON.stringify(newSong, undefined, 4));
-            this.sendToRenderer('song-change', newSong);
-        });
 
-        listenToPlaybackState((isPlaying: boolean) => {
-            console.info(`Player ${isPlaying ? "un" : ''}paused`);
-            this.sendToRenderer('is-playing', isPlaying);
-        });
+        let songListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
+        let playbackListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
 
+        const onConnected = async () => {
+            this.loopState = await getLoopStatus();
+            this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
+
+            this.sendToRenderer('loop', this.loopState);
+            this.sendToRenderer('shuffle', await getShuffleStatus());
+
+            songListenerProcess = listenToSongChanges((newSong: SongData) => {
+                this.sendToRenderer('song-change', newSong);
+            });
+
+            playbackListenerProcess = listenToPlaybackState((isPlaying: boolean) => {
+                this.sendToRenderer('is-playing', isPlaying);
+            });
+        }
+
+
+        listenToStatus(isConnected => {
+            console.log(`[${MODULE_NAME}] Connection status changed ${isConnected}`);
+            this.sendToRenderer('connected', isConnected);
+            if (isConnected) {
+                onConnected();
+            } else {
+                songListenerProcess?.kill();
+                playbackListenerProcess?.kill();
+            }
+        })
+
+
+
+    }
+
+    async onExit(): Promise<void> {
+        cleanupProcesses()
     }
 
     public async handleEvent(eventType: string, data: any[]): Promise<any> {

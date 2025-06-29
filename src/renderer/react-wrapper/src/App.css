@@ -1,25 +1,49 @@
 #root {
-    max-width: 1280px;
-    margin: 0 auto;
-    padding: 2rem;
+    width: 100vw;
+    height: 100vh;
     text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+
 }
 
 .song-metadata {
+    max-width: 100vw;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    
+    
     &>* {
         margin: 0;
         padding: 0;
+        white-space: nowrap;
+        overflow: clip;
+        text-overflow: ellipsis;
+        text-align: center;
+        min-width: 90vw;
+        max-width: 90vw;
+
     }
 
-    h1 {
+    .title {
         font-size: 64px;
+        margin-bottom: 24px;
     }
 
-    h2 {
+    .album {
         font-size: 32px;
     }
 
-    h3 {
+    .artist {
+        font-size: 32px;
+
+    }
+
+    .time {
         font-size: 32px;
     }
 
@@ -30,13 +54,13 @@
         display: flex;
         align-items: center;
         justify-content: center;
-        gap: 48px;
+        gap: 18vh;
         margin-bottom: 32px;
     }
 
     button {
-        height: 64px;
-        width: 64px;
+        height: 25vh;
+        width: 25vh;
     }
 }
 
@@ -45,10 +69,6 @@
     mask-position: center;
     background-color: var(--text-color);
     cursor: pointer;
-    transition: 0.2s;;
-
-    &:hover {
-        background-color: var(--accent-color);
-    }
+    transition: 0.2s;
 
 }

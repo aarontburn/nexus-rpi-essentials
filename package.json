@@ -8,7 +8,7 @@
     "start": "npm-run-all --parallel vite:start electron-start",
     "export": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js",
     "export:dev": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js --dev",
-    "export:output-dir": "node node_modules/@nexus-app/nexus-exporter/exporter.js --default-location",
+    "export:output-dir": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js --default-location",
     "vite:build": "cd %npm_package_config_react-wrapper-directory% && npm run build",
     "vite:start": "cd %npm_package_config_react-wrapper-directory% && npm run dev",
     "electron-start": "npm run export:dev && cd ./node_modules/@nexus-app/nexus-client/ && npm start"
