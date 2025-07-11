@@ -13,6 +13,7 @@ const sendToProcess = (eventType: string, ...data: any[]): Promise<void> => {
     return window.ipc.sendToProcess(eventType, data);
 }
 
+
 window.ipc.onProcessEvent((eventType: string, data: any[]) => {
     handleEvent(eventType, data);
 });

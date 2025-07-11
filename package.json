@@ -7,14 +7,14 @@
     "preinstall": "cd %npm_package_config_react-wrapper-directory% && npm install",
     "start": "npm-run-all --parallel vite:start electron-start",
     "export": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js",
-    "export:dev": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js --dev",
+    "export:dev": "node node_modules/@nexus-app/nexus-exporter/exporter.js --dev",
     "export:output-dir": "npm run vite:build && node node_modules/@nexus-app/nexus-exporter/exporter.js --default-location",
     "vite:build": "cd %npm_package_config_react-wrapper-directory% && npm run build",
     "vite:start": "cd %npm_package_config_react-wrapper-directory% && npm run dev",
     "electron-start": "npm run export:dev && cd ./node_modules/@nexus-app/nexus-client/ && npm start"
   },
   "devDependencies": {
-    "@nexus-app/nexus-client": "^0.1.0",
+    "@nexus-app/nexus-client": "^0.1.2",
     "@types/yauzl-promise": "^4.0.1",
     "electron": "^35.1.5",
     "install": "^0.13.0",
@@ -22,5 +22,8 @@
     "npm-run-all": "^4.1.5",
     "typescript": "^4.8.3",
     "yauzl-promise": "^4.0.0"
+  },
+  "dependencies": {
+    "strip-ansi": "^7.1.0"
   }
 }

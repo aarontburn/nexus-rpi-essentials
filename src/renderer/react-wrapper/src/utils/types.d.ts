@@ -1,11 +1,3 @@
-export interface SongData {
-    title: string;
-    album: string;
-    artist: string;
-    position: string;
-    duration: string;
-}
-
 export interface RPIConnectStatus {
     signedIn: boolean;
     subscribedToEvents: boolean;
@@ -16,6 +8,3 @@ export interface RPIConnectStatus {
     remoteShellAllowed: boolean;
     activeRemoteShellSessions: number;
 }
-
-
-

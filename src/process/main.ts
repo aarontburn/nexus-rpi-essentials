@@ -1,8 +1,11 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { getLoopStatus, getShuffleStatus, listenToPlaybackState, listenToSongChanges, next, previous, setLoop, toggleShuffle, togglePlay, startMPRISProxy, listenToStatus, cleanupProcesses } from "./media";
-import { LoopState, ORDERED_LOOP_STATES, SongData } from "./types";
+import { listenToPlaybackState, listenToSongChanges, next, previous, togglePlay, startMPRISProxy, listenToStatus, cleanupMediaProcesses } from "./media";
+import { RPIConnectStatus, SongData } from "./types";
 import { ChildProcessWithoutNullStreams } from "child_process";
+import { cleanupBluetoothProcesses, disableBluetooth, enableBluetooth, isBluetoothEnabled } from "./services/bluetooth";
+import { cleanupRPICProcesses, disableRPIConnect, enableRPIConnect, listenToRPIConnectStatus } from "./services/rpi-connect";
+import { cleanupWifiProcesses, getWifiStatus } from "./services/wifi";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -17,9 +20,6 @@ const ICON_PATH: string = undefined;
 
 
 export default class ChildProcess extends Process {
-
-    private loopState: LoopState = ORDERED_LOOP_STATES[0];
-    private loopIndex: number = 0;
 
 
     public constructor() {
@@ -36,26 +36,41 @@ export default class ChildProcess extends Process {
     public async initialize(): Promise<void> {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
-        console.log("[Nexus RPI Essentials] Starting.");
 
         if (process.platform !== 'linux') {
             return;
         }
+        console.log("[Nexus RPI Essentials] Starting.");
 
+        getWifiStatus((connectedWifiName: string | undefined) => {
+            this.sendToRenderer('services-wifi-info', connectedWifiName);
+        });
+
+
+        listenToRPIConnectStatus((status: RPIConnectStatus | undefined) => {
+            this.sendToRenderer('services-rpic-info', status);
+        })
+
+        // getRPIConnectStatus().then((status: RPIConnectStatus | undefined) => {
+        //     this.sendToRenderer('services-rpic-info', status);
+        // })
+
+        this.sendToRenderer('services-info', {
+            bluetooth: {
+                powered: await isBluetoothEnabled(),
+            }
+        })
+
+        this.startMedia();
+    }
+
+    private async startMedia() {
         await startMPRISProxy();
-
-
 
         let songListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
         let playbackListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
 
         const onConnected = async () => {
-            this.loopState = await getLoopStatus();
-            this.loopIndex = ORDERED_LOOP_STATES.indexOf(this.loopState);
-
-            this.sendToRenderer('loop', this.loopState);
-            this.sendToRenderer('shuffle', await getShuffleStatus());
-
             songListenerProcess = listenToSongChanges((newSong: SongData) => {
                 this.sendToRenderer('song-change', newSong);
             });
@@ -65,24 +80,28 @@ export default class ChildProcess extends Process {
             });
         }
 
-
+        let connectedStatus: boolean = false;
         listenToStatus(isConnected => {
+            if (isConnected === connectedStatus) {
+                return;
+            }
+            songListenerProcess?.kill();
+            playbackListenerProcess?.kill();
+
             console.log(`[${MODULE_NAME}] Connection status changed ${isConnected}`);
+
             this.sendToRenderer('connected', isConnected);
             if (isConnected) {
                 onConnected();
-            } else {
-                songListenerProcess?.kill();
-                playbackListenerProcess?.kill();
             }
         })
-
-
-
     }
 
     async onExit(): Promise<void> {
-        cleanupProcesses()
+        cleanupMediaProcesses();
+        cleanupBluetoothProcesses();
+        cleanupRPICProcesses();
+        cleanupWifiProcesses();
     }
 
     public async handleEvent(eventType: string, data: any[]): Promise<any> {
@@ -91,41 +110,57 @@ export default class ChildProcess extends Process {
                 this.initialize();
                 break;
             }
-
-            case "previous": {
+            case "media-previous": {
                 await previous();
                 break;
             }
 
-            case "play-pause": {
+            case "media-play-pause": {
                 await togglePlay();
                 break;
             }
 
-            case "next": {
+            case "media-next": {
                 await next();
                 break;
             }
 
-            case "shuffle": {
-                await toggleShuffle();
-                this.sendToRenderer('shuffle', await getShuffleStatus());
-
-                break;
-            }
-
-            case "loop": {
-                this.loopIndex++;
-                if (this.loopIndex > ORDERED_LOOP_STATES.length - 1) {
-                    this.loopIndex = 0;
+            case 'services-wifi-toggle': {
+                const shouldEnableWifi: boolean = data[0];
+                if (shouldEnableWifi) {
+                    
                 }
-                this.loopState = ORDERED_LOOP_STATES[this.loopIndex];
-                await setLoop(this.loopState);
-                this.sendToRenderer('loop', this.loopState);
+
 
                 break;
             }
 
+            case "services-bt-toggle": {
+                const shouldEnableBluetooth: boolean = data[0];
+                if (shouldEnableBluetooth) {
+                    await enableBluetooth();
+                } else {
+                    await disableBluetooth();
+                }
+
+                this.sendToRenderer('services-bt-power', await isBluetoothEnabled())
+
+                break;
+            }
+
+            case 'services-rpic-toggle': {
+                const shouldEnableRPIC: boolean = data[0];
+                if (shouldEnableRPIC) {
+                    await enableRPIConnect();
+                } else {
+                    await disableRPIConnect();
+                }
+
+                // setTimeout(async () => {
+                    // this.sendToRenderer('services-rpic-info', await getRPIConnectStatus());
+                // }, 0)
+                break;
+            }
 
             default: {
                 console.info(`[${MODULE_NAME}] Unhandled event: eventType: ${eventType} | data: ${data}`);

@@ -1,6 +1,37 @@
 
 
 
+Nexus on startup
+    sudo nano ~/.config/systemd/user/nexus.service
+        [Unit]
+        Description=Nexus Application Autostart Service
+        After=graphical-session.target
+
+        [Service]
+        Type=idle
+        Environment="DISPLAY=:0"
+        ExecStart=/usr/bin/nexus
+
+        [Service]
+        Restart=always
+        RestartSec=5
+
+        [Install]
+        WantedBy=default.target
+
+    systemctl --user daemon-reload
+    systemctl --user enable nexus.service
+
+
+
+Services
+    Wifi
+    Bluetooth
+    Raspberry Pi Connect
+
+- Display
+    - Fullscreen mode
+
 - System health monitor
     - Temp
     - RAM Usage
@@ -15,3 +46,24 @@
     - Turn on/off or restart
 
 - Bluetooth
+    - Media
+        Packages
+            sudo apt install mpris-proxy bluez blueman bluez-utils playerctl
+            sudo apt install pulseaudio pulseaudio-module-bluetooth
+            
+        sudo nano /etc/bluetooth/main.conf
+            Class = 0x00041C
+            Enable = Source,Sink,Media,Socket
+            ControllerMode = Dual
+            FastConnectable = true
+            Disable = Headset
+
+        sudo nano /etc/pulse/default.pa
+
+            - Comment out 
+            # load-module module-bluetooth-policy
+            # load-module module-bluetooth-discover
+
+            - Add
+            load-module module-bluetooth-discover headset=none
+

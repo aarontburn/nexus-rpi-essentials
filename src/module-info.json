@@ -14,7 +14,7 @@
         "git-repo-name": "nexus-rpi-essentials"
     },
     "build": {
-        "build-version": 24,
+        "build-version": 88,
         "excluded": [
             "electron.ts",
             "./renderer/react-wrapper"

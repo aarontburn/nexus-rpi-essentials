@@ -1,12 +1,12 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
-import { LoopState, SongData } from "./types";
+import { SongData } from "./types";
 
 const DELIMITER: string = ".|.";
 
 const createdProcesses: ChildProcessWithoutNullStreams[] = []
 
 
-export function cleanupProcesses() {
+export function cleanupMediaProcesses() {
     createdProcesses.forEach(proc => {
         try {
             proc.kill();
@@ -16,12 +16,15 @@ export function cleanupProcesses() {
     });
 }
 
+
+
+
 export async function startMPRISProxy(): Promise<void> {
     return new Promise((resolve) => {
         console.log(`[mpris-proxy] Attempting to start mpris-proxy...`);
 
         const process: ChildProcessWithoutNullStreams = spawn('mpris-proxy');
-        createdProcesses.push(process)
+        createdProcesses.push(process);
 
         process.on('spawn', () => {
             console.log(`[mpris-proxy] Started mpris-proxy.`);
@@ -30,8 +33,11 @@ export async function startMPRISProxy(): Promise<void> {
 
         process.stdout.on("data", (data) => {
             console.log(`[mpris-proxy] ${data.toString().trim()}`);
-
         });
+
+        process.on('message', (data) => {
+            console.log(`[mpris-proxy] ${data.toString().trim()}`);
+        })
 
         process.stderr.on("data", (data) => {
             console.error(`[mpris-proxy] ${data.toString().trim()}`);
@@ -112,7 +118,6 @@ export function listenToSongChanges(callback: (songData: SongData) => void): Chi
 }
 
 
-
 export function listenToPlaybackState(callback: (isPlaying: boolean) => void): ChildProcessWithoutNullStreams {
     const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', ['status', '--follow']);
     createdProcesses.push(playerCTL)
@@ -167,14 +172,6 @@ export function setPosition(positionSeconds: number) {
     return executePlayerCTLFunction(`position ${positionSeconds}`);
 }
 
-export function setLoop(loop: LoopState) {
-    return executePlayerCTLFunction(`loop ${loop}`);
-}
-
-export function toggleShuffle() {
-    return executePlayerCTLFunction(`shuffle toggle`);
-}
-
 async function executePlayerCTLFunction(functionName: string): Promise<void> {
     return new Promise((resolve) => {
         const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, functionName.split(' '));
@@ -191,52 +188,3 @@ async function executePlayerCTLFunction(functionName: string): Promise<void> {
     })
 }
 
-
-export async function getLoopStatus(): Promise<LoopState> {
-    return new Promise((resolve) => {
-        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, ['loop']);
-        createdProcesses.push(playerCTL)
-
-        playerCTL.stdout.on("data", (data) => {
-            resolve(data.toString().trim());
-            playerCTL.kill();
-        });
-
-        playerCTL.stderr.on("data", (data) => {
-            resolve(null);
-            console.error(`Error: ${data}`);
-        });
-
-        playerCTL.on("close", () => {
-            const index: number = createdProcesses.indexOf(playerCTL);
-            if (index !== -1) {
-                createdProcesses.splice(index, 1);
-            }
-        });
-
-    })
-}
-
-export async function getShuffleStatus(): Promise<boolean> {
-    return new Promise((resolve) => {
-        const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, ['shuffle']);
-        createdProcesses.push(playerCTL)
-
-        playerCTL.stdout.on("data", (data) => {
-            resolve(data.toString().trim() === "On");
-            playerCTL.kill();
-        });
-
-        playerCTL.stderr.on("data", (data) => {
-            resolve(null);
-            console.error(`Error: ${data}`);
-        });
-
-        playerCTL.on("close", () => {
-            const index: number = createdProcesses.indexOf(playerCTL);
-            if (index !== -1) {
-                createdProcesses.splice(index, 1);
-            }
-        });
-    })
-}
