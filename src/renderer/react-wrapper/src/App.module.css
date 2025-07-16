@@ -3,10 +3,11 @@
     width: 100%;
 
     main {
-        height: calc(100% - 80px);
+        height: calc(100% - 64px);
         padding: 0;
         box-sizing: border-box;
         margin: 16px;
+        width: calc(100% - 16px);
     }
 
     header {

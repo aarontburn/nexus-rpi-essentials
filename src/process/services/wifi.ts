@@ -1,5 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn as sp, SpawnOptionsWithoutStdio } from "child_process"
 import stripAnsi from "strip-ansi";
+import ChildProcess from "../main";
 
 
 const createdWifiProcesses: ChildProcessWithoutNullStreams[] = []
@@ -24,6 +25,20 @@ function spawn(command: string, args?: string[], options?: SpawnOptionsWithoutSt
     });
     createdWifiProcesses.push(process);
     return process;
+}
+
+export async function handleWifiEvent(process: ChildProcess, eventType: string, data: any[]) {
+    switch (eventType) {
+        case 'services-wifi-toggle': {
+            const shouldEnableWifi: boolean = data[0];
+            if (shouldEnableWifi) {
+
+            }
+
+
+            break;
+        }
+    }
 }
 
 

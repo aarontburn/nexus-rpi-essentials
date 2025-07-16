@@ -1,10 +1,38 @@
+.service-container {
+    display: flex;
+    height: 100%;
+    gap: 16px
+}
 
+.left {
+    width: 25%;
+    height: 100%;
+    border-right: 1px solid var(--text-color);
 
-.container {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+
+    h1 {
+        font-size: 24px;
+        margin: 0;
+        padding: 0;
+        cursor: pointer;
+        user-select: none;
+        font-weight: normal;
+    }
+}
+
+.right {
+    width: 75%;
+    height: 100%;
+
+    padding-right: 16px;
     display: flex;
     flex-direction: column;
     align-items: start;
     gap: 8px;
+    overflow-y: scroll;
 
     .section-header {
         display: flex;
@@ -12,8 +40,29 @@
         align-items: center;
     }
 
-    &>div {
-
+    p {
+        font-size: 24px;
     }
 
+    &>div {}
+
+}
+
+.device-list {
+    width: 100%;
+}
+
+.bt-device {
+    display: flex;
+    width: 100%;
+
+    p {
+        transition: 0.2s;
+        cursor: pointer;
+
+        &:active {
+            color: var(--accent-color);
+
+        }
+    }
 }

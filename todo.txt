@@ -47,10 +47,16 @@ Services
 
 - Bluetooth
     - Media
+
         Packages
-            sudo apt install mpris-proxy bluez blueman bluez-utils playerctl
-            sudo apt install pulseaudio pulseaudio-module-bluetooth
+            sudo apt install bluez blueman playerctl
+
+        sudo nano /etc/systemd/system/bluetooth.target.wants/bluetooth.service
+            ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=hfp,headset
+
             
+        sudo usermod -a -G bluetooth YOUR_USER_NAME
+
         sudo nano /etc/bluetooth/main.conf
             Class = 0x00041C
             Enable = Source,Sink,Media,Socket

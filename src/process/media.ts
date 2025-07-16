@@ -1,5 +1,6 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { SongData } from "./types";
+import ChildProcess from "./main";
 
 const DELIMITER: string = ".|.";
 
@@ -16,6 +17,25 @@ export function cleanupMediaProcesses() {
     });
 }
 
+
+export async function handleMediaEvent(process: ChildProcess, eventType: string, data: any[]) {
+    switch (eventType) {
+        case "media-previous": {
+            await previous();
+            break;
+        }
+
+        case "media-play-pause": {
+            await togglePlay();
+            break;
+        }
+
+        case "media-next": {
+            await next();
+            break;
+        }
+    }
+}
 
 
 

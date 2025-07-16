@@ -1,11 +1,11 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { listenToPlaybackState, listenToSongChanges, next, previous, togglePlay, startMPRISProxy, listenToStatus, cleanupMediaProcesses } from "./media";
+import { listenToPlaybackState, listenToSongChanges, startMPRISProxy, listenToStatus, cleanupMediaProcesses, handleMediaEvent } from "./media";
 import { RPIConnectStatus, SongData } from "./types";
 import { ChildProcessWithoutNullStreams } from "child_process";
-import { cleanupBluetoothProcesses, disableBluetooth, enableBluetooth, isBluetoothEnabled } from "./services/bluetooth";
-import { cleanupRPICProcesses, disableRPIConnect, enableRPIConnect, listenToRPIConnectStatus } from "./services/rpi-connect";
-import { cleanupWifiProcesses, getWifiStatus } from "./services/wifi";
+import { cleanupBluetoothProcesses, handleBluetoothEvent, initBluetooth, isBluetoothEnabled, listenToPairedDevices } from "./services/bluetooth";
+import { cleanupRPICProcesses, handleRPIConnectEvent, listenToRPIConnectStatus } from "./services/rpi-connect";
+import { cleanupWifiProcesses, getWifiStatus, handleWifiEvent } from "./services/wifi";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -49,17 +49,9 @@ export default class ChildProcess extends Process {
 
         listenToRPIConnectStatus((status: RPIConnectStatus | undefined) => {
             this.sendToRenderer('services-rpic-info', status);
-        })
+        });
 
-        // getRPIConnectStatus().then((status: RPIConnectStatus | undefined) => {
-        //     this.sendToRenderer('services-rpic-info', status);
-        // })
-
-        this.sendToRenderer('services-info', {
-            bluetooth: {
-                powered: await isBluetoothEnabled(),
-            }
-        })
+        initBluetooth(this);
 
         this.startMedia();
     }
@@ -105,67 +97,17 @@ export default class ChildProcess extends Process {
     }
 
     public async handleEvent(eventType: string, data: any[]): Promise<any> {
+        await handleBluetoothEvent(this, eventType, data);
+        await handleRPIConnectEvent(this, eventType, data);
+        await handleWifiEvent(this, eventType, data);
+        await handleMediaEvent(this, eventType, data);
+
         switch (eventType) {
             case "init": { // This is called when the renderer is ready to receive events.
                 this.initialize();
                 break;
             }
-            case "media-previous": {
-                await previous();
-                break;
-            }
 
-            case "media-play-pause": {
-                await togglePlay();
-                break;
-            }
-
-            case "media-next": {
-                await next();
-                break;
-            }
-
-            case 'services-wifi-toggle': {
-                const shouldEnableWifi: boolean = data[0];
-                if (shouldEnableWifi) {
-                    
-                }
-
-
-                break;
-            }
-
-            case "services-bt-toggle": {
-                const shouldEnableBluetooth: boolean = data[0];
-                if (shouldEnableBluetooth) {
-                    await enableBluetooth();
-                } else {
-                    await disableBluetooth();
-                }
-
-                this.sendToRenderer('services-bt-power', await isBluetoothEnabled())
-
-                break;
-            }
-
-            case 'services-rpic-toggle': {
-                const shouldEnableRPIC: boolean = data[0];
-                if (shouldEnableRPIC) {
-                    await enableRPIConnect();
-                } else {
-                    await disableRPIConnect();
-                }
-
-                // setTimeout(async () => {
-                    // this.sendToRenderer('services-rpic-info', await getRPIConnectStatus());
-                // }, 0)
-                break;
-            }
-
-            default: {
-                console.info(`[${MODULE_NAME}] Unhandled event: eventType: ${eventType} | data: ${data}`);
-                break;
-            }
         }
     }
 

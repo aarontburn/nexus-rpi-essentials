@@ -1,6 +1,7 @@
 import { ChildProcessWithoutNullStreams, spawn as sp, SpawnOptionsWithoutStdio } from "child_process"
 import stripAnsi from "strip-ansi";
 import { RPIConnectStatus } from "../types";
+import ChildProcess from "../main";
 
 const createdRPIConnectProcesses: ChildProcessWithoutNullStreams[] = []
 export function cleanupRPICProcesses() {
@@ -14,8 +15,6 @@ export function cleanupRPICProcesses() {
 }
 
 
-
-
 function spawn(command: string, args?: string[], options?: SpawnOptionsWithoutStdio): ChildProcessWithoutNullStreams {
     const process: ChildProcessWithoutNullStreams = sp(command, args, options);
     process.on("close", () => {
@@ -27,6 +26,25 @@ function spawn(command: string, args?: string[], options?: SpawnOptionsWithoutSt
     createdRPIConnectProcesses.push(process);
     return process;
 }
+
+export async function handleRPIConnectEvent(process: ChildProcess, eventType: string, data: any[]) {
+    switch (eventType) {
+        case 'services-rpic-toggle': {
+            const shouldEnableRPIC: boolean = data[0];
+            if (shouldEnableRPIC) {
+                await enableRPIConnect();
+            } else {
+                await disableRPIConnect();
+            }
+
+            // setTimeout(async () => {
+            // this.sendToRenderer('services-rpic-info', await getRPIConnectStatus());
+            // }, 0)
+            break;
+        }
+    }
+}
+
 
 
 export async function enableRPIConnect(): Promise<void> {
