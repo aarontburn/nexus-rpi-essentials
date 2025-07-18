@@ -36,8 +36,11 @@ export interface BluetoothScanEventChange {
 export default function BluetoothPanel() {
     const [isBluetoothPowered, setIsBluetoothPowered] = useState<boolean>(false);
     const [availableDevices, setAvailableDevices] = useState<{ [macAddress: string]: BluetoothDevice }>({});
-    const [pairedDevices, setPairedDevices] = useState<BluetoothDevice[]>([]);
-    const [connectedDevices, setConnectedDevices] = useState<BluetoothDevice[]>([]);
+    const [pairedDevices, setPairedDevices] = useState<{ [macAddress: string]: BluetoothDevice }>({});
+    const [connectedDevices, setConnectedDevices] = useState<{ [macAddress: string]: BluetoothDevice }>({});
+
+
+    const isConnected = (device: BluetoothDevice): boolean => connectedDevices[device.macAddress] !== undefined;
 
     useEffect(() => {
         const listener = addProcessListener((eventType: string, data: any[]) => {
@@ -49,14 +52,23 @@ export default function BluetoothPanel() {
                 }
                 case 'services-bt-paired-devices': {
                     const deviceList: BluetoothDevice[] = data[0];
-                    setPairedDevices(deviceList);
+
+                    const out: { [macAddress: string]: BluetoothDevice } = {};
+                    for (const device of deviceList) {
+                        out[device.macAddress] = device;
+                    }
+                    setPairedDevices(out);
 
                     break;
                 }
 
                 case 'services-bt-connected-devices': {
                     const deviceList: BluetoothDevice[] = data[0];
-                    setConnectedDevices(deviceList);
+                    const out: { [macAddress: string]: BluetoothDevice } = {};
+                    for (const device of deviceList) {
+                        out[device.macAddress] = device;
+                    }
+                    setConnectedDevices(out)
                     break;
                 }
 
@@ -121,13 +133,20 @@ export default function BluetoothPanel() {
         <div className={styles['device-list']}>
 
             {
-                pairedDevices.length > 0
-                    ? pairedDevices.map(device => {
-                        const isConnected: boolean = connectedDevices.some(connected => connected.macAddress === device.macAddress);
-
+                Object.keys(pairedDevices).length > 0
+                    ? Object.values(pairedDevices).sort((a, b) => {
+                        if ((isConnected(a) && isConnected(b)) || (!isConnected(a) && !isConnected(b))) {
+                            return a.displayName.localeCompare(b.displayName);
+                        } else if (isConnected(a)) {
+                            return -1;
+                        } else {
+                            return 1;
+                        }
+                        
+                    }).map(device => {
                         return <BluetoothDeviceComponent
                             key={device.macAddress}
-                            source={isConnected ? "connected" : "paired"}
+                            source={isConnected(device) ? "connected" : "paired"}
                             deviceName={device.displayName}
                             macAddress={device.macAddress} />
                     }

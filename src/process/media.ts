@@ -1,6 +1,7 @@
 import { ChildProcessWithoutNullStreams, spawn } from "child_process"
 import { SongData } from "./types";
 import ChildProcess from "./main";
+import { globalShortcut } from "electron";
 
 const DELIMITER: string = ".|.";
 
@@ -15,6 +16,39 @@ export function cleanupMediaProcesses() {
             console.error('Failed to kill process:', e);
         }
     });
+}
+
+export async function initMedia(process: ChildProcess) {
+    await startMPRISProxy();
+
+    let songListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
+    let playbackListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
+
+    const onConnected = async () => {
+        songListenerProcess = listenToSongChanges((newSong: SongData) => {
+            process.sendToRenderer('song-change', newSong);
+        });
+
+        playbackListenerProcess = listenToPlaybackState((isPlaying: boolean) => {
+            process.sendToRenderer('is-playing', isPlaying);
+        });
+    }
+
+    let connectedStatus: boolean = false;
+    listenToStatus(isConnected => {
+        if (isConnected === connectedStatus) {
+            return;
+        }
+        songListenerProcess?.kill();
+        playbackListenerProcess?.kill();
+
+        console.log(`Connection status changed ${isConnected}`);
+
+        process.sendToRenderer('connected', isConnected);
+        if (isConnected) {
+            onConnected();
+        }
+    })
 }
 
 

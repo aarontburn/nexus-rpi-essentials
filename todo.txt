@@ -45,31 +45,27 @@ Services
 - Raspberry Pi Connect
     - Turn on/off or restart
 
+scrcpy -m800 -b2M
+
 - Bluetooth
     - Media
 
         Packages
             sudo apt install bluez blueman playerctl
 
-        sudo nano /etc/systemd/system/bluetooth.target.wants/bluetooth.service
-            ExecStart=/usr/libexec/bluetooth/bluetoothd --noplugin=hfp,headset
-
-            
-        sudo usermod -a -G bluetooth YOUR_USER_NAME
 
         sudo nano /etc/bluetooth/main.conf
-            Class = 0x00041C
+            Class = 0x20041C
             Enable = Source,Sink,Media,Socket
-            ControllerMode = Dual
             FastConnectable = true
-            Disable = Headset
 
-        sudo nano /etc/pulse/default.pa
 
-            - Comment out 
-            # load-module module-bluetooth-policy
-            # load-module module-bluetooth-discover
 
-            - Add
-            load-module module-bluetooth-discover headset=none
+
+Commands:
+sudo nano /etc/pulse/default.pa
+sudo usermod -a -G bluetooth YOUR_USER_NAME
+sudo nano /etc/systemd/system/bluetooth.target.wants/bluetooth.service
+sudo nano /etc/bluetooth/main.conf
+
 

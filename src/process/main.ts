@@ -1,11 +1,12 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
-import { listenToPlaybackState, listenToSongChanges, startMPRISProxy, listenToStatus, cleanupMediaProcesses, handleMediaEvent } from "./media";
-import { RPIConnectStatus, SongData } from "./types";
-import { ChildProcessWithoutNullStreams } from "child_process";
-import { cleanupBluetoothProcesses, handleBluetoothEvent, initBluetooth, isBluetoothEnabled, listenToPairedDevices } from "./services/bluetooth";
+import { cleanupMediaProcesses, handleMediaEvent, initMedia } from "./media";
+import { RPIConnectStatus } from "./types";
+import { cleanupBluetoothProcesses, handleBluetoothEvent, initBluetooth } from "./services/bluetooth";
 import { cleanupRPICProcesses, handleRPIConnectEvent, listenToRPIConnectStatus } from "./services/rpi-connect";
 import { cleanupWifiProcesses, getWifiStatus, handleWifiEvent } from "./services/wifi";
+import { globalShortcut } from "electron";
+import { initKeybinds } from "./services/keybinds";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -37,9 +38,13 @@ export default class ChildProcess extends Process {
         super.initialize(); // This should be called.
         this.refreshAllSettings();
 
+        initKeybinds(this);
+
         if (process.platform !== 'linux') {
             return;
         }
+
+
         console.log("[Nexus RPI Essentials] Starting.");
 
         getWifiStatus((connectedWifiName: string | undefined) => {
@@ -52,42 +57,9 @@ export default class ChildProcess extends Process {
         });
 
         initBluetooth(this);
-
-        this.startMedia();
+        initMedia(this);
     }
 
-    private async startMedia() {
-        await startMPRISProxy();
-
-        let songListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
-        let playbackListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
-
-        const onConnected = async () => {
-            songListenerProcess = listenToSongChanges((newSong: SongData) => {
-                this.sendToRenderer('song-change', newSong);
-            });
-
-            playbackListenerProcess = listenToPlaybackState((isPlaying: boolean) => {
-                this.sendToRenderer('is-playing', isPlaying);
-            });
-        }
-
-        let connectedStatus: boolean = false;
-        listenToStatus(isConnected => {
-            if (isConnected === connectedStatus) {
-                return;
-            }
-            songListenerProcess?.kill();
-            playbackListenerProcess?.kill();
-
-            console.log(`[${MODULE_NAME}] Connection status changed ${isConnected}`);
-
-            this.sendToRenderer('connected', isConnected);
-            if (isConnected) {
-                onConnected();
-            }
-        })
-    }
 
     async onExit(): Promise<void> {
         cleanupMediaProcesses();
