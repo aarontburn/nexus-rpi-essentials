@@ -142,7 +142,7 @@ export default function BluetoothPanel() {
                         } else {
                             return 1;
                         }
-                        
+
                     }).map(device => {
                         return <BluetoothDeviceComponent
                             key={device.macAddress}
@@ -212,10 +212,10 @@ function BluetoothDeviceComponent(props: BluetoothDeviceComponentProps) {
             } else if (props.source === "connected") {
                 sendToProcess("services-bt-disconnect", props.macAddress);
             }
-
-
         }}>{props.source === "connected" ? <>(Connected)</> : ""} {props.deviceName} ({props.macAddress})</p>
         <div style={{ marginRight: "auto" }}></div>
-        <p>A</p>
+        {
+            props.source === "connected" ? <p>A</p> : <></>
+        }
     </div>
 }

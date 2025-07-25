@@ -30,19 +30,32 @@ function spawn(command: string, args?: string[], options?: SpawnOptionsWithoutSt
 }
 
 export async function initBluetooth(process: ChildProcess) {
+    let isFirst = true;
     listenToPairedDevices((deviceList: BluetoothDevice[]) => {
         process.sendToRenderer('services-bt-paired-devices', deviceList)
+
+        // Attempt to auto-connect on the first boot
+        if (isFirst && process.getSettings().findSetting('auto-reconnect-bt').getValue() === true) {
+            for (const device of deviceList) {
+                console.log(`[bluetooth autoconnect] Attempting to auto-connect to ${device.displayName} (${device.macAddress})`)
+                connectWithDevice(device.macAddress);
+            }
+        }
+        isFirst = false;
     });
 
+
     listenToConnectedDevices((deviceList: BluetoothDevice[]) => {
-        process.sendToRenderer('services-bt-connected-devices', deviceList)
+        process.sendToRenderer('services-bt-connected-devices', deviceList);
     });
 
     process.sendToRenderer('services-info', {
         bluetooth: {
             powered: await isBluetoothEnabled(),
         }
-    })
+    });
+
+
 
 }
 
@@ -72,7 +85,6 @@ export async function handleBluetoothEvent(process: ChildProcess, eventType: str
         case 'services-bt-scan': {
             scanForBluetoothDevices((event: BluetoothScanEvent) => {
                 process.sendToRenderer('services-bt-scan-event', event);
-                console.log(JSON.stringify(event))
             });
             break;
         }
@@ -109,40 +121,49 @@ export async function disconnectDevice(macAddress: string): Promise<void> {
 }
 
 export async function connectWithDevice(macAddress: string): Promise<void> {
+    console.log(`[bluetooth connect] Attempting to connect to ${macAddress}`);
+    
+    await trustDevice(macAddress);
+
     return new Promise((resolve) => {
+
         const process: ChildProcessWithoutNullStreams = spawn('bluetoothctl', ['connect', macAddress]);
 
         process.stdout.on('data', (data) => {
             data = stripAnsi(data.toString().trim());
-            console.log(data);
+            console.log(`[bluetooth connect (${macAddress})]`, data);
         });
         process.stderr.on('data', (data) => {
             data = stripAnsi(data.toString().trim());
-            console.error(data);
+            console.log(`[bluetooth connect (${macAddress})]`, data);
         });
 
         process.on('close', resolve);
     })
 }
 
+export async function trustDevice(macAddress: string): Promise<void> {
+    return new Promise((resolve) => {
+        const trustProcess: ChildProcessWithoutNullStreams = spawn('bluetoothctl', ['trust', macAddress]);
+
+        trustProcess.stdout.on('data', (data) => {
+            data = stripAnsi(data.toString().trim());
+            console.log(`[bluetooth pair (${macAddress})]`, data);
+        });
+        trustProcess.stderr.on('data', (data) => {
+            data = stripAnsi(data.toString().trim());
+            console.log(`[bluetooth pair (${macAddress})]`, data);
+        });
+
+        trustProcess.on('close', resolve);
+    });
+}
+
 
 export async function pairWithDevice(macAddress: string): Promise<void> {
+    console.log(`[bluetooth pair (${macAddress})] Attempting to pair with ${macAddress}`);
     return new Promise(async (resolve) => {
-
-        await new Promise((trustResolve) => {
-            const trustProcess: ChildProcessWithoutNullStreams = spawn('bluetoothctl', ['trust', macAddress]);
-
-            trustProcess.stdout.on('data', (data) => {
-                data = stripAnsi(data.toString().trim());
-                console.log(data);
-            });
-            trustProcess.stderr.on('data', (data) => {
-                data = stripAnsi(data.toString().trim());
-                console.error(data);
-            });
-
-            trustProcess.on('close', trustResolve);
-        });
+        await trustDevice(macAddress);
 
         await new Promise((pairResolve) => {
             const pairProcess: ChildProcessWithoutNullStreams = spawn('bluetoothctl', ['pair', macAddress]);

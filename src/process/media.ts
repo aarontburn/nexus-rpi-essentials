@@ -1,11 +1,22 @@
-import { ChildProcessWithoutNullStreams, spawn } from "child_process"
+import { ChildProcessWithoutNullStreams, spawn as sp, SpawnOptionsWithoutStdio } from "child_process"
 import { SongData } from "./types";
 import ChildProcess from "./main";
-import { globalShortcut } from "electron";
 
 const DELIMITER: string = ".|.";
 
 const createdProcesses: ChildProcessWithoutNullStreams[] = []
+
+function spawn(command: string, args?: string[], options?: SpawnOptionsWithoutStdio): ChildProcessWithoutNullStreams {
+    const process: ChildProcessWithoutNullStreams = sp(command, args, options);
+    process.on("close", () => {
+        const index: number = createdProcesses.indexOf(process);
+        if (index !== -1) {
+            createdProcesses.splice(index, 1);
+        }
+    });
+    createdProcesses.push(process);
+    return process;
+}
 
 
 export function cleanupMediaProcesses() {
@@ -25,7 +36,17 @@ export async function initMedia(process: ChildProcess) {
     let playbackListenerProcess: ChildProcessWithoutNullStreams | undefined = undefined;
 
     const onConnected = async () => {
-        songListenerProcess = listenToSongChanges((newSong: SongData) => {
+        songListenerProcess = listenToSongChanges((newSong: SongData | null) => {
+            if (newSong === null) {
+                setTimeout(() => {
+                    songListenerProcess?.kill();
+                    playbackListenerProcess?.kill();
+                    console.log("Attempting new connection")
+                    onConnected();
+                }, 500)
+
+            }
+
             process.sendToRenderer('song-change', newSong);
         });
 
@@ -34,15 +55,16 @@ export async function initMedia(process: ChildProcess) {
         });
     }
 
-    let connectedStatus: boolean = false;
-    listenToStatus(isConnected => {
+    let connectedStatus: boolean | undefined = undefined;
+    listenToStatus((isConnected: boolean) => {
         if (isConnected === connectedStatus) {
             return;
         }
+        connectedStatus = isConnected;
+        console.info(connectedStatus)
+
         songListenerProcess?.kill();
         playbackListenerProcess?.kill();
-
-        console.log(`Connection status changed ${isConnected}`);
 
         process.sendToRenderer('connected', isConnected);
         if (isConnected) {
@@ -75,10 +97,7 @@ export async function handleMediaEvent(process: ChildProcess, eventType: string,
 
 export async function startMPRISProxy(): Promise<void> {
     return new Promise((resolve) => {
-        console.log(`[mpris-proxy] Attempting to start mpris-proxy...`);
-
-        const process: ChildProcessWithoutNullStreams = spawn('mpris-proxy');
-        createdProcesses.push(process);
+        const process: ChildProcessWithoutNullStreams = spawn('stdbuf', ['-oL', 'mpris-proxy']);
 
         process.on('spawn', () => {
             console.log(`[mpris-proxy] Started mpris-proxy.`);
@@ -86,24 +105,21 @@ export async function startMPRISProxy(): Promise<void> {
         });
 
         process.stdout.on("data", (data) => {
-            console.log(`[mpris-proxy] ${data.toString().trim()}`);
+            data = data.toString().trim();
+            for (const line of data.split(/\r?\n/)) {
+                console.log(`[mpris-proxy] ${line}`);
+            }
         });
 
-        process.on('message', (data) => {
-            console.log(`[mpris-proxy] ${data.toString().trim()}`);
-        })
-
         process.stderr.on("data", (data) => {
-            console.error(`[mpris-proxy] ${data.toString().trim()}`);
+            data = data.toString().trim();
+            for (const line of data.split(/\r?\n/)) {
+                console.error(`[mpris-proxy] ${line}`);
+            }
         });
 
         process.on("close", (code) => {
             console.error(`[mpris-proxy] Disconnected with code ${code}`);
-
-            const index: number = createdProcesses.indexOf(process);
-            if (index !== -1) {
-                createdProcesses.splice(index, 1);
-            }
         });
     })
 }
@@ -111,7 +127,6 @@ export async function startMPRISProxy(): Promise<void> {
 export function listenToStatus(callback: (isConnected: boolean) => void): ChildProcessWithoutNullStreams {
     console.log(`[playerctl status --follow] Checking status...`);
     const process: ChildProcessWithoutNullStreams = spawn('playerctl', ['status', '--follow']);
-    createdProcesses.push(process)
 
     process.stdout.on("data", (data) => {
         const status: string = data.toString().trim();
@@ -125,32 +140,19 @@ export function listenToStatus(callback: (isConnected: boolean) => void): ChildP
     });
 
     process.stderr.on("data", (data) => {
-        console.error(`Error: ${data}`);
+        console.error(`[playerctl status --follow] Error checking status: ${data}`);
     });
 
-    process.on("close", (code) => {
-        console.log(`[playerctl status --follow] Exited with code ${code}`);
-        const index: number = createdProcesses.indexOf(process);
-        if (index !== -1) {
-            createdProcesses.splice(index, 1);
-        }
-    });
     return process
 }
 
-export function listenToSongChanges(callback: (songData: SongData) => void): ChildProcessWithoutNullStreams {
+export function listenToSongChanges(callback: (songData: SongData | null) => void): ChildProcessWithoutNullStreams {
     const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', [
         '--follow',
         'metadata',
         '--format',
-        '{{ artist }}.|.{{ album }}.|.{{ title }}.|.{{ duration(position) }}.|.{{ duration(mpris:length) }}'
+        `{{ artist }}${DELIMITER}{{ album }}${DELIMITER}{{ title }}${DELIMITER}{{ duration(position) }}${DELIMITER}{{ duration(mpris:length) }}`
     ]);
-    createdProcesses.push(playerCTL)
-
-
-    playerCTL.on('spawn', () => {
-        console.log(`[playerctl metadata] Started listener.`);
-    })
 
     playerCTL.stdout.on("data", (data) => {
         const songData: SongData = parseSongData(data.toString().trim());
@@ -158,43 +160,27 @@ export function listenToSongChanges(callback: (songData: SongData) => void): Chi
     });
 
     playerCTL.stderr.on("data", (data) => {
-        console.error(`Error: ${data}`);
+        if (data.toString().trim().includes(`No such property 'Metadata'`)) {
+            callback(null); // restart when this error comes up
+        }
+        console.error(`[playerctl metadata]: ${data.toString().trim()}`);
     });
 
-    playerCTL.on("close", (code) => {
-        console.log(`[playerctl metadata] Exited with code ${code}`);
-        const index: number = createdProcesses.indexOf(playerCTL);
-        if (index !== -1) {
-            createdProcesses.splice(index, 1);
-        }
-    });
     return playerCTL;
 }
 
 
 export function listenToPlaybackState(callback: (isPlaying: boolean) => void): ChildProcessWithoutNullStreams {
     const playerCTL: ChildProcessWithoutNullStreams = spawn('playerctl', ['status', '--follow']);
-    createdProcesses.push(playerCTL)
-
-    playerCTL.on('spawn', () => {
-        console.log(`[playerctl status] Started listener.`);
-    })
 
     playerCTL.stdout.on("data", (data) => {
         callback(data.toString().trim() === "Playing");
     });
 
     playerCTL.stderr.on("data", (data) => {
-        console.error(`Error: ${data}`);
+        console.error(`[playerctl status] Error: ${data.toString().trim()}`);
     });
 
-    playerCTL.on("close", (code) => {
-        console.log(`[playerctl status] Exited with code ${code}`);
-        const index: number = createdProcesses.indexOf(playerCTL);
-        if (index !== -1) {
-            createdProcesses.splice(index, 1);
-        }
-    });
     return playerCTL;
 }
 
@@ -229,15 +215,8 @@ export function setPosition(positionSeconds: number) {
 async function executePlayerCTLFunction(functionName: string): Promise<void> {
     return new Promise((resolve) => {
         const playerCTL: ChildProcessWithoutNullStreams = spawn(`playerctl`, functionName.split(' '));
-        createdProcesses.push(playerCTL)
-
-
         playerCTL.on("close", () => {
             resolve();
-            const index: number = createdProcesses.indexOf(playerCTL);
-            if (index !== -1) {
-                createdProcesses.splice(index, 1);
-            }
         });
     })
 }

@@ -1,12 +1,13 @@
 import * as path from "path";
 import { Process, Setting } from "@nexus-app/nexus-module-builder";
+import { BooleanSetting } from "@nexus-app/nexus-module-builder/settings/types";
 import { cleanupMediaProcesses, handleMediaEvent, initMedia } from "./media";
 import { RPIConnectStatus } from "./types";
 import { cleanupBluetoothProcesses, handleBluetoothEvent, initBluetooth } from "./services/bluetooth";
 import { cleanupRPICProcesses, handleRPIConnectEvent, listenToRPIConnectStatus } from "./services/rpi-connect";
 import { cleanupWifiProcesses, getWifiStatus, handleWifiEvent } from "./services/wifi";
-import { globalShortcut } from "electron";
 import { initKeybinds } from "./services/keybinds";
+import { initPackageManager } from "./services/package-manager";
 
 // These is replaced to the ID specified in export-config.js during export. DO NOT MODIFY.
 const MODULE_ID: string = "{EXPORTED_MODULE_ID}";
@@ -58,6 +59,7 @@ export default class ChildProcess extends Process {
 
         initBluetooth(this);
         initMedia(this);
+        initPackageManager(this);
     }
 
 
@@ -85,6 +87,11 @@ export default class ChildProcess extends Process {
 
     public registerSettings(): (Setting<unknown> | string)[] {
         return [
+            "Services",
+            new BooleanSetting(this)
+                .setName('Reconnect Bluetooth Devices on Boot')
+                .setAccessID('auto-reconnect-bt')
+                .setDefault(true)
 
         ];
     }

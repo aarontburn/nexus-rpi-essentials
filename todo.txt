@@ -52,12 +52,11 @@ scrcpy -m800 -b2M
 
         Packages
             sudo apt install bluez blueman playerctl
-
+            sudo apt install pulseaudio pulseaudio-module-bluetooth
 
         sudo nano /etc/bluetooth/main.conf
             Class = 0x20041C
-            Enable = Source,Sink,Media,Socket
-            FastConnectable = true
+            ControllerMode = dual
 
 
 
